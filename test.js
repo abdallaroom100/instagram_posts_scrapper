@@ -238,16 +238,13 @@ import { chromium } from "playwright";
 import fetch from "node-fetch";
 import fs from "fs";
 
-// ===== الإعدادات الأساسية =====
 const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
 const TARGET_USER = "nannis_cakes";
 const YOUR_USERNAME = "abdallarroom13";
 const YOUR_PASSWORD = "Az01027101373@#";
 const COOKIES_FILE = "cookies.json";
 
-// ===== تسجيل الدخول وجلب الكوكيز =====
 async function loginAndGetCookies() {
-  // 🧹 احذف أي كوكيز قديمة
   if (fs.existsSync(COOKIES_FILE)) {
     fs.unlinkSync(COOKIES_FILE);
     console.log("🧹 Deleted old cookies.json");
@@ -266,36 +263,65 @@ async function loginAndGetCookies() {
     ],
   });
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
-
-  await page.goto(INSTAGRAM_LOGIN_URL, {
-    waitUntil: "domcontentloaded",
-    timeout: 60000,
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
   });
 
-  // ✏️ إدخال بيانات تسجيل الدخول
+  const page = await context.newPage();
+
+  console.log("🌐 Opening Instagram...");
+  await page.goto(INSTAGRAM_LOGIN_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: 90000,
+  });
+
+  // ✅ إغلاق أي بانر كوكيز أو عناصر بتحجب الزر
+  try {
+    await page.locator('text=Allow all cookies').click({ timeout: 3000 });
+    console.log("🍪 Accepted cookies popup.");
+  } catch {}
+  try {
+    await page.locator('text=Allow essential cookies').click({ timeout: 3000 });
+    console.log("🍪 Closed essential cookies popup.");
+  } catch {}
+
   await page.waitForSelector('input[name="username"]', { timeout: 30000 });
   await page.fill('input[name="username"]', YOUR_USERNAME);
   await page.fill('input[name="password"]', YOUR_PASSWORD);
 
-  await Promise.all([
-    page.click('button[type="submit"]'),
-    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
-  ]);
+  // ✅ نتاكد إن الزر visible وننزل له
+  const loginButton = page.locator('button[type="submit"]');
+  await loginButton.scrollIntoViewIfNeeded();
 
-  // ✅ الحصول على الكوكيز بعد تسجيل الدخول
+  // 🔄 نكرر محاولة الضغط 3 مرات لو في block
+  for (let i = 0; i < 3; i++) {
+    try {
+      await Promise.all([
+        loginButton.click({ force: true }),
+        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 90000 }),
+      ]);
+      break;
+    } catch (err) {
+      console.log(`⚠️ Retry login click (${i + 1}/3)...`);
+      await page.waitForTimeout(2000);
+    }
+  }
+
+  console.log("✅ Logged in successfully, getting cookies...");
+
+  await page.waitForTimeout(5000);
   const cookies = await context.cookies();
+  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+
   await browser.close();
 
-  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
-  console.log("✅ Logged in and got fresh cookies.");
-
-  const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+  console.log("🍪 Cookies saved successfully.");
   return cookieString;
 }
 
-// ===== جلب بيانات البروفايل =====
 async function getInstagramProfile(username, cookies) {
   const headers = {
     "User-Agent":
@@ -320,7 +346,6 @@ async function getInstagramProfile(username, cookies) {
   return json.data.user;
 }
 
-// ===== جلب البوستات =====
 async function getUserPosts(userId, cookies, count = 12) {
   const headers = {
     "User-Agent":
@@ -345,12 +370,9 @@ async function getUserPosts(userId, cookies, count = 12) {
   return json.items || [];
 }
 
-// ===== التشغيل الأساسي =====
 (async () => {
   try {
-    console.log("🔐 Logging into Instagram with Playwright...");
     const cookies = await loginAndGetCookies();
-
     console.log("\n📊 Fetching profile data...");
     const user = await getInstagramProfile(TARGET_USER, cookies);
 
@@ -391,14 +413,9 @@ async function getUserPosts(userId, cookies, count = 12) {
     });
 
     const fullData = { profile: profileData, posts };
-    fs.writeFileSync(
-      `${TARGET_USER}_data.json`,
-      JSON.stringify(fullData, null, 2)
-    );
-
+    fs.writeFileSync(`${TARGET_USER}_data.json`, JSON.stringify(fullData, null, 2));
     console.log(`💾 Data saved to ${TARGET_USER}_data.json`);
   } catch (err) {
     console.error("❌ Error:", err.message);
-    console.error("💡 Tip: امسح cookies.json وشغّل تاني لو حصل Block أو Timeout.");
   }
 })();
