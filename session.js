@@ -70,7 +70,7 @@ const YOUR_PASSWORD = 'Az01027101373@#';
 
 async function loginAndGetCookies() {
   const browser = await puppeteer.launch({ 
-    headless: true,
+    headless: "shell",
     defaultViewport: null,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
