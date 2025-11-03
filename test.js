@@ -236,7 +236,6 @@
 
 import { chromium } from 'playwright';
 import fs from 'fs';
-import { resolve } from 'path';
 
 const YOUR_USERNAME = "abdallarroom13";
 const YOUR_PASSWORD = "Az01027101373@#";
@@ -244,56 +243,76 @@ const YOUR_PASSWORD = "Az01027101373@#";
 (async () => {
   try {
     console.log("🚀 Launching browser...");
-    
+
     const browser = await chromium.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      headless: true, // خليه false مؤقتًا لو عايز تشوف الخطوات
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 }
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      viewport: { width: 1920, height: 1080 },
     });
 
     const page = await context.newPage();
 
     console.log("🌐 Opening Instagram...");
-    await page.goto('https://www.instagram.com/accounts/login/', {
-      waitUntil: 'networkidle',
-      timeout: 90000
+    await page.goto("https://www.instagram.com/accounts/login/", {
+      waitUntil: "networkidle",
+      timeout: 90000,
     });
 
     console.log("⏳ Waiting for login form...");
     await page.waitForSelector('input[name="username"]', { timeout: 30000 });
 
+    // ✅ محاولة إغلاق الكوكيز بانر لو موجود
+    try {
+      const cookieButtons = [
+        'text=Allow all',
+        'text=Accept all',
+        'text=Accept',
+        'text=Only essential',
+        'text=Allow essential cookies only'
+      ];
+      for (const selector of cookieButtons) {
+        const btn = page.locator(selector);
+        if (await btn.isVisible({ timeout: 2000 })) {
+          await btn.click();
+          console.log(`🍪 Closed cookies banner using: ${selector}`);
+          break;
+        }
+      }
+    } catch {
+      console.log("⚠️ No cookies banner found, continuing...");
+    }
+
     console.log("⌨️ Typing username...");
     await page.fill('input[name="username"]', YOUR_USERNAME);
-    await new Promise(resolve=>setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     console.log("⌨️ Typing password...");
     await page.fill('input[name="password"]', YOUR_PASSWORD);
-    await new Promise(resolve=>setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     console.log("🔐 Clicking login...");
-   await Promise.all([
-  page.click('button[type="submit"]'),
-  page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
-]);
+    await Promise.all([
+      page.click('button[type="submit"]', { timeout: 30000 }),
+      page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 90000 }),
+    ]);
 
-    console.log("⏳ Waiting for navigation...");
-    await page.waitForURL(/instagram.com\/(?!accounts\/login)/, { 
-      timeout: 60000 
-    });
+    console.log("⏳ Waiting for home page...");
+    await page.waitForURL(/instagram.com\/(?!accounts\/login)/, { timeout: 90000 });
 
-    console.log("✅ Logged in! Getting cookies...");
-    await new Promise(resolve=>setTimeout(resolve, 3000))
+    console.log("✅ Logged in successfully!");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
 
+    console.log("💾 Saving cookies...");
     const cookies = await context.cookies();
-    
-    fs.writeFileSync('cookies.json', JSON.stringify(cookies, null, 2));
-    console.log("💾 Cookies saved to cookies.json");
+    fs.writeFileSync("cookies.json", JSON.stringify(cookies, null, 2));
+    console.log("📁 Cookies saved to cookies.json");
 
-    const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
     console.log("🍪 Cookie string:", cookieString.substring(0, 150) + "...");
 
     await browser.close();
