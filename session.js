@@ -80,7 +80,7 @@ async function loginAndGetCookies() {
 //     ],
 //   });
 const browser = await puppeteer.launch({
-    headless: true,
+    headless: false,
     executablePath: '/usr/bin/chromium', // ⬅️ مهم جداً
     args: [
       '--no-sandbox',
