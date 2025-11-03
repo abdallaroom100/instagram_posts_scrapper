@@ -234,226 +234,191 @@
 // })();
 
 
-import { chromium } from "playwright";
-import fetch from "node-fetch";
-import fs from "fs";
+import { chromium } from 'playwright';
+import fetch from 'node-fetch';
+import fs from 'fs';
+import { resolve } from 'path';
 
-const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
-const TARGET_USER = "nannis_cakes";
-const YOUR_USERNAME = "abdallarroom13";
-const YOUR_PASSWORD = "Az01027101373@#";
-const COOKIES_FILE = "cookies.json";
+// ⚙️ الإعدادات
+const CONFIG = {
+  USERNAME: "abdallarroom13",
+  PASSWORD: "Az01027101373@#",
+  TARGET_USER: "nannis_cakes",
+  COOKIES_FILE: "cookies.json",
+  INSTAGRAM_LOGIN_URL: "https://www.instagram.com/accounts/login/",
+};
 
-// helpers
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-function randomSleep(min = 2000, max = 6000) {
-  const ms = Math.floor(min + Math.random() * (max - min));
-  return sleep(ms);
-}
-
-async function fetchWithRetries(url, options = {}, tries = 3) {
-  for (let attempt = 1; attempt <= tries; attempt++) {
-    try {
-      const res = await fetch(url, options);
-      if (res.ok) return res;
-      // For 401/429 retry with backoff
-      if ([401, 429, 500, 502, 503, 504].includes(res.status) && attempt < tries) {
-        const wait = 2000 * attempt + Math.random() * 2000;
-        console.warn(`⚠️ Fetch ${url} returned ${res.status}. Retrying in ${Math.round(wait)}ms (attempt ${attempt}/${tries})`);
-        await sleep(wait);
-        continue;
-      }
-      return res;
-    } catch (e) {
-      if (attempt < tries) {
-        const wait = 1000 * attempt + Math.random() * 1000;
-        console.warn(`⚠️ Fetch error: ${e.message}. Retrying in ${Math.round(wait)}ms (attempt ${attempt}/${tries})`);
-        await sleep(wait);
-        continue;
-      }
-      throw e;
-    }
+// 🍪 دالة تحميل الكوكيز من الملف
+async function loadCookiesFromFile() {
+  if (fs.existsSync(CONFIG.COOKIES_FILE)) {
+    console.log("🍪 Loading cookies from file...");
+    const cookies = JSON.parse(fs.readFileSync(CONFIG.COOKIES_FILE, "utf8"));
+    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
   }
-  throw new Error("fetchWithRetries: unexpected flow");
+  return null;
 }
 
+// 🔐 دالة تسجيل الدخول والحصول على الكوكيز
 async function loginAndGetCookies() {
-  // remove old cookies so every run logs in fresh
-  if (fs.existsSync(COOKIES_FILE)) {
-    try {
-      fs.unlinkSync(COOKIES_FILE);
-      console.log("🧹 Deleted old cookies.json");
-    } catch {}
-  }
-
-  console.log("🚀 Launching Playwright browser...");
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-blink-features=AutomationControlled",
-    ],
-  });
-
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-  });
-
-  const page = await context.newPage();
-
-  console.log("🌐 Opening Instagram login page...");
-  await page.goto(INSTAGRAM_LOGIN_URL, { waitUntil: "domcontentloaded", timeout: 90000 });
-
-  // try to close cookie/privacy banners if present
+  let browser;
+  
   try {
-    // multiple textual possibilities
-    const cookieSelectors = [
-      'text=Allow all',
-      'text=Allow all cookies',
-      'text=Accept all',
-      'text=Accept',
-      'text=Allow essential cookies',
-      'text=Only essential',
-    ];
-    for (const s of cookieSelectors) {
-      const locator = page.locator(s);
-      if (await locator.isVisible({ timeout: 1500 }).catch(() => false)) {
-        await locator.click().catch(() => null);
-        console.log(`🍪 Clicked cookie button: ${s}`);
-        await sleep(500);
-        break;
-      }
-    }
-  } catch (e) {}
+    console.log("\n🚀 Launching browser...");
+    
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
 
-  console.log("⏳ Waiting for login form...");
-  await page.waitForSelector('input[name="username"]', { timeout: 30000 });
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+      viewport: { width: 1920, height: 1080 },
+      locale: 'en-US',
+    });
 
-  // fill credentials
-  await page.fill('input[name="username"]', YOUR_USERNAME);
-  await randomSleep(300, 900);
-  await page.fill('input[name="password"]', YOUR_PASSWORD);
-  await randomSleep(300, 900);
+    const page = await context.newPage();
 
-  // ensure button visible and try click with retries and force
-  const loginButton = page.locator('button[type="submit"]');
-  await loginButton.scrollIntoViewIfNeeded();
+    console.log("🌐 Opening Instagram login page...");
+    await page.goto(CONFIG.INSTAGRAM_LOGIN_URL, {
+      waitUntil: 'domcontentloaded',
+      timeout: 90000
+    });
 
-  let clicked = false;
-  for (let i = 0; i < 4 && !clicked; i++) {
+    console.log("⏳ Waiting for login form...");
+    await page.waitForSelector('input[name="username"]', { timeout: 30000 });
+
+    // إضافة تأخير عشوائي (يبدو أكثر طبيعية)
+    await new Promise(resolve,setTimeout(resolve,Math.random() * 1500 + 1000))
+
+
+    console.log("⌨️  Typing username...");
+    await page.fill('input[name="username"]', CONFIG.USERNAME);
+       await new Promise(resolve,setTimeout(resolve,Math.random() * 800 + 500))
+  
+
+    console.log("⌨️  Typing password...");
+    await page.fill('input[name="password"]', CONFIG.PASSWORD);
+          await new Promise(resolve,setTimeout(resolve,Math.random() * 800 + 500))
+
+    console.log("🔐 Submitting login form...");
+    await page.click('button[type="submit"]');
+
+    // انتظار التنقل بعد تسجيل الدخول
+    console.log("⏳ Waiting for login to complete...");
     try {
-      await Promise.all([
-        // use force:true because overlays sometimes intercept
-        loginButton.click({ force: true }),
-        page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 90000 }),
-      ]);
-      clicked = true;
-    } catch (e) {
-      console.warn(`⚠️ login click attempt ${i + 1} failed: ${e.message}`);
-      await randomSleep(1000, 3000);
-      // try to close any new popups that may appear
-      try {
-        // some overlays can be closed by pressing Escape
-        await page.keyboard.press("Escape").catch(() => null);
-      } catch {}
+      await page.waitForURL(/instagram.com\/(?!accounts\/login)/, { 
+        timeout: 60000 
+      });
+    } catch (err) {
+      // أحياناً Instagram مش بيعمل redirect كامل، فنستنى شوية
+      console.log("⚠️  Navigation might be slow, waiting extra time...");
+         await new Promise(resolve,setTimeout(resolve,Math.random() * 8000))
     }
-  }
-  if (!clicked) {
+
+    // التأكد من نجاح تسجيل الدخول
+    const currentUrl = page.url();
+    if (currentUrl.includes('/accounts/login/')) {
+      throw new Error("Login failed! Still on login page.");
+    }
+
+    console.log("✅ Login successful! Getting cookies...");
+        await new Promise(resolve,setTimeout(resolve,Math.random() *3000))
+
+    const cookies = await context.cookies();
+    
+    if (cookies.length === 0) {
+      throw new Error("No cookies received!");
+    }
+
+    // حفظ الكوكيز في ملف
+    fs.writeFileSync(CONFIG.COOKIES_FILE, JSON.stringify(cookies, null, 2));
+    console.log(`💾 Cookies saved to ${CONFIG.COOKIES_FILE}`);
+
+    // تحويل الكوكيز لـ string
+    const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    console.log("🍪 Cookie preview:", cookieString.substring(0, 100) + "...\n");
+
     await browser.close();
-    throw new Error("Failed to click login button after retries");
+    return cookieString;
+
+  } catch (error) {
+    console.error("\n❌ Login Error:", error.message);
+    if (browser) await browser.close();
+    throw error;
   }
-
-  // wait a bit to stabilize session
-  console.log("⏳ Waiting a bit for session to stabilize...");
-  await sleep(5000);
-
-  // Visit home and your profile to make the session look real
-  try {
-    console.log("🏠 Visiting Instagram home...");
-    await page.goto("https://www.instagram.com/", { waitUntil: "networkidle", timeout: 60000 });
-    await randomSleep(3000, 6000);
-
-    console.log("👤 Visiting your profile to stabilize session...");
-    await page.goto(`https://www.instagram.com/${YOUR_USERNAME}/`, { waitUntil: "networkidle", timeout: 60000 });
-    await randomSleep(3000, 7000);
-  } catch (e) {
-    console.warn("⚠️ Warning while stabilizing session:", e.message);
-  }
-
-  // final wait & collect cookies
-  await sleep(2000);
-  const cookies = await context.cookies();
-  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
-  await browser.close();
-
-  // build cookie string
-  const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-  console.log("✅ Logged in and saved fresh cookies.");
-  return { cookieString, cookies };
 }
 
-async function getInstagramProfile(username, cookieString) {
-  const csrftoken = (cookieString.match(/csrftoken=([^;]+)/) || [])[1] || "";
+// 📊 دالة جلب بيانات البروفايل
+async function getInstagramProfile(username, cookies) {
   const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    Referer: `https://www.instagram.com/${YOUR_USERNAME}/`,
-    Accept: "*/*",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Accept": "*/*",
     "X-IG-App-ID": "936619743392459",
-    "X-CSRFToken": csrftoken,
-    Cookie: cookieString,
+    "X-CSRFToken": cookies.split("csrftoken=")[1]?.split(";")[0] || "",
+    "Cookie": cookies,
   };
 
-  const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`;
-  const res = await fetchWithRetries(url, { headers }, 3);
+  console.log(`📊 Fetching profile for @${username}...`);
+  
+  const res = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
+    { headers }
+  );
+
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status}: ${text}`);
+    const errorText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errorText}`);
   }
+
   const json = await res.json();
   return json.data.user;
 }
 
-async function getUserPosts(userId, cookieString, count = 12) {
-  const csrftoken = (cookieString.match(/csrftoken=([^;]+)/) || [])[1] || "";
+// 🖼️ دالة جلب منشورات المستخدم
+async function getUserPosts(userId, cookies, count = 12) {
   const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    Referer: `https://www.instagram.com/${YOUR_USERNAME}/`,
-    Accept: "*/*",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Accept": "*/*",
     "X-IG-App-ID": "936619743392459",
-    "X-CSRFToken": csrftoken,
-    Cookie: cookieString,
+    "X-CSRFToken": cookies.split("csrftoken=")[1]?.split(";")[0] || "",
+    "Cookie": cookies,
   };
 
-  const url = `https://i.instagram.com/api/v1/feed/user/${userId}/?count=${count}`;
-  const res = await fetchWithRetries(url, { headers }, 3);
+  console.log(`🖼️  Fetching ${count} latest posts...`);
+  
+  const res = await fetch(
+    `https://i.instagram.com/api/v1/feed/user/${userId}/?count=${count}`,
+    { headers }
+  );
+
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} for posts: ${text}`);
+    const errorText = await res.text();
+    throw new Error(`HTTP ${res.status} for posts: ${errorText}`);
   }
+
   const json = await res.json();
   return json.items || [];
 }
 
-// main
+// 🎯 البرنامج الرئيسي
 (async () => {
+  console.log("═══════════════════════════════════════════");
+  console.log("   📸 Instagram Profile & Posts Scraper   ");
+  console.log("═══════════════════════════════════════════\n");
+
   try {
-    // always login fresh
-    const { cookieString } = await loginAndGetCookies();
+    // 1️⃣ محاولة تحميل الكوكيز من الملف
+    let cookies = await loadCookiesFromFile();
+    
+    // 2️⃣ إذا لم تكن موجودة، قم بتسجيل الدخول
+    if (!cookies) {
+      console.log("⚠️  No cookies found, logging in...\n");
+      cookies = await loginAndGetCookies();
+    }
 
-    // small pause just in case
-    await randomSleep(2000, 5000);
-
-    console.log("\n📊 Fetching profile data...");
-    const user = await getInstagramProfile(TARGET_USER, cookieString);
+    // 3️⃣ جلب بيانات البروفايل
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    const user = await getInstagramProfile(CONFIG.TARGET_USER, cookies);
 
     const profileData = {
       username: user.username,
@@ -463,43 +428,76 @@ async function getUserPosts(userId, cookieString, count = 12) {
       following: user.edge_follow.count,
       posts_count: user.edge_owner_to_timeline_media.count,
       is_private: user.is_private,
-      profile_pic: user.profile_pic_url,
+      is_verified: user.is_verified,
+      profile_pic: user.profile_pic_url_hd || user.profile_pic_url,
       user_id: user.id,
+      external_url: user.external_url || null,
+      category: user.category_name || null,
     };
 
-    console.log("✅ Profile fetched successfully.");
+    console.log("✅ Profile Data:");
+    console.log("   👤 Username:", profileData.username);
+    console.log("   📝 Name:", profileData.name);
+    console.log("   👥 Followers:", profileData.followers.toLocaleString());
+    console.log("   ➕ Following:", profileData.following.toLocaleString());
+    console.log("   📷 Posts:", profileData.posts_count);
+    console.log("   🔒 Private:", profileData.is_private ? "Yes" : "No");
+    console.log("   ✔️  Verified:", profileData.is_verified ? "Yes" : "No");
+    if (profileData.bio) {
+      console.log("   💬 Bio:", profileData.bio.substring(0, 100) + (profileData.bio.length > 100 ? "..." : ""));
+    }
 
-    // wait a bit before posts
-    await randomSleep(3000, 8000);
+    // 4️⃣ جلب المنشورات
+    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    const postsRaw = await getUserPosts(user.id, cookies, 12);
 
-    console.log("\n🖼️ Fetching latest posts...");
-    const postsRaw = await getUserPosts(user.id, cookieString, 12);
-
-    const posts = postsRaw.map((post) => {
-      const shortcode = post.shortcode || post.code || "undefined";
+    const posts = postsRaw.map((post, index) => {
+      const shortcode = post.code || post.shortcode || "undefined";
       return {
-        caption:
-          post.edge_media_to_caption?.edges?.[0]?.node?.text ||
-          post.caption?.text ||
-          "",
-        image:
-          post.display_url ||
-          post.image_versions2?.candidates?.[0]?.url ||
-          post.video_url ||
-          "",
-        likes: post.edge_liked_by?.count || post.like_count || 0,
-        comments: post.edge_media_to_comment?.count || post.comment_count || 0,
+        position: index + 1,
+        caption: (post.caption?.text || post.edge_media_to_caption?.edges[0]?.node.text || "").substring(0, 200),
+        image: post.image_versions2?.candidates?.[0]?.url || post.display_url || post.video_url || "",
+        likes: post.like_count || post.edge_liked_by?.count || 0,
+        comments: post.comment_count || post.edge_media_to_comment?.count || 0,
         url: `https://www.instagram.com/p/${shortcode}/`,
-        type: post.is_video ? "video" : "image",
+        type: post.media_type === 2 || post.is_video ? "video" : "image",
+        timestamp: post.taken_at || post.taken_at_timestamp || null,
       };
     });
 
-    const fullData = { profile: profileData, posts };
-    fs.writeFileSync(`${TARGET_USER}_data.json`, JSON.stringify(fullData, null, 2));
-    console.log(`💾 Data saved to ${TARGET_USER}_data.json`);
+    console.log(`✅ Found ${posts.length} posts:\n`);
+    posts.slice(0, 3).forEach(post => {
+      console.log(`   ${post.position}. ${post.type === 'video' ? '🎥' : '📷'} ${post.url}`);
+      console.log(`      ❤️  ${post.likes.toLocaleString()} likes | 💬 ${post.comments.toLocaleString()} comments`);
+      if (post.caption) {
+        console.log(`      📝 ${post.caption.substring(0, 60)}...`);
+      }
+      console.log("");
+    });
+
+    // 5️⃣ حفظ البيانات في ملف JSON
+    const fullData = { 
+      profile: profileData, 
+      posts: posts,
+      scraped_at: new Date().toISOString(),
+      total_posts_fetched: posts.length
+    };
+    
+    const outputFile = `${CONFIG.TARGET_USER}_data.json`;
+    fs.writeFileSync(outputFile, JSON.stringify(fullData, null, 2));
+
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log(`✅ Data saved to ${outputFile}`);
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
   } catch (err) {
-    console.error("❌ Error:", err.message);
-    console.error("💡 Tip: لو استمرت مشكلة 401 فجرب: 1) تشغيل محلي مرة (مش VPS)، 2) استخدام proxy ريزيدنشيال، 3) زوّد الانتظار بعد login (30s+).");
+    console.error("\n❌ Fatal Error:", err.message);
+    console.error("\n💡 Troubleshooting tips:");
+    console.error("   • Check your internet connection");
+    console.error("   • Verify your Instagram credentials");
+    console.error("   • Instagram might be blocking automated access");
+    console.error("   • Try deleting cookies.json and login again");
+    console.error("   • Check if Instagram requires verification\n");
+    process.exit(1);
   }
-})();
+})()
