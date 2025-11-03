@@ -71,54 +71,56 @@ const YOUR_PASSWORD = "Az01027101373@#";
 
 const COOKIES_FILE = "cookies.json";
 
+
+const config = {
+  host: "https://www.instagram.com",
+  postsLimit:  9,
+  auth: {
+    username:"abdallarroom13",
+    password: "Az01027101373@#",
+  },
+};
 async function loginAndGetCookies() {
-const browser = await chromium.launch({
+  const browser = await chromium.launch({
     headless: true,
-    args: [
-      '--no-sandbox', // مهم جداً للسيرفرات
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
-    ],
+    args: ["--no-sandbox", "--disable-blink-features=AutomationControlled"],
   });
+  const page = await browser.newPage();
 
-const page = await browser.newPage();
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  );
 
-// ✅ استخدم domcontentloaded بدل networkidle2
-await page.goto(INSTAGRAM_LOGIN_URL, {
-  waitUntil: "domcontentloaded",
-  timeout: 60000,
-});
+  await page.goto(`${config.host}/accounts/login/`, {
+    waitUntil: "networkidle2",
+  });
+  await new Promise(r => setTimeout(r, 2000));
 
-// ✅ انتظر ظهور الـ input عشان تتأكد إن الصفحة اتحملت
-await page.waitForSelector('input[name="username"]', { timeout: 30000 });
+  await page.type('input[name="username"]', config.auth.username, {
+    delay: 20,
+  });
+  await page.type('input[name="password"]', config.auth.password, {
+    delay: 20,
+  });
+  await page.click('button[type="submit"]');
 
-// ✅ اكتب بيانات الدخول
-await page.type('input[name="username"]', YOUR_USERNAME, { delay: 80 });
-await page.type('input[name="password"]', YOUR_PASSWORD, { delay: 80 });
+  await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 30000 });
+  await new Promise(r => setTimeout(r, 3000));
 
-// ✅ دوس تسجيل الدخول
-await Promise.all([
-  page.click('button[type="submit"]'),
-  page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
-]);
+  const cookies = (await page.cookies())
+    .map(c => `${c.name}=${c.value}`)
+    .join("; ");
+  await browser.close();
 
-// ✅ بعد ما يسجل الدخول، خُد الكوكيز
-const cookies = await page.cookies();
-await browser.close();
+  if (!cookies || cookies.length < 10) {
+    throw new Error("failed to obtain valid cookies - login might have failed");
+  }
 
-const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-console.log("✅ Cookies obtained:", cookieString.substring(0, 150) + "...");
-
-return cookieString;
 
 }
 
 async function loadCookies() {
-  if (fs.existsSync(COOKIES_FILE)) {
-    console.log("🍪 Loading cookies from file...");
-    const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, "utf8"));
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-  }
+
   return null;
 }
 
