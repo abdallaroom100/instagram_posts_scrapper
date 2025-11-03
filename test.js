@@ -26,9 +26,9 @@ const runPuppeteer = async () => {
     const page = await browser.newPage();
 
     // Navigate to the specified URL
-    await page.goto("https://www.google.com");
+    await page.goto("https://instagram.com");
 
-    console.log("Navigation to Google completed.");
+    console.log("Navigation to instagram completed.");
 
     // Close the browser
     await browser.close();
