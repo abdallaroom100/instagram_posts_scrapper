@@ -57,7 +57,8 @@
 // })();
 
 
-
+const USERNAME = "abdallarroom13";
+const PASSWORD = "Az01027101373@#";
 
 // import puppeteer from "puppeteer";
 import { chromium } from "playwright";
@@ -87,8 +88,8 @@ async function loginAndSaveCookies() {
   }
 
   console.log("⌨️ Typing credentials...");
-  await page.fill('input[name="username"]', process.env.IG_USERNAME);
-  await page.fill('input[name="password"]', process.env.IG_PASSWORD);
+  await page.fill('input[name="username"]', USERNAME);
+  await page.fill('input[name="password"]', PASSWORD);
   await page.click('button[type="submit"]');
 
   // انتظار الانتقال بعد تسجيل الدخول
