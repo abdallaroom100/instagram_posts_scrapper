@@ -103,8 +103,8 @@ async function loginAndGetCookies() {
   } catch (_) {}
 
   console.log("⌨️ Typing credentials...");
-  await page.fill('input[name="username"]', YOUR_USERNAME);
-  await page.fill('input[name="password"]', YOUR_PASSWORD);
+  await page.fill('input[name="username"]', USERNAME);
+  await page.fill('input[name="password"]', PASSWORD);
 
   await Promise.all([
     page.click('button[type="submit"]'),
