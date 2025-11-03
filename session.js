@@ -73,30 +73,60 @@ async function loginAndGetCookies() {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",
+    ],
   });
+
   const page = await browser.newPage();
+  await page.setUserAgent(
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+  );
 
+  console.log("🌍 Opening Instagram login...");
   await page.goto("https://www.instagram.com/accounts/login/", {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
   });
-  await page.waitForSelector('input[name="username"]');
 
-  await page.type('input[name="username"]', USERNAME, { delay: 30 });
-  await page.type('input[name="password"]', PASSWORD, { delay: 30 });
+  // أحيانًا بيظهر cookie banner لازم يتقفل
+  try {
+    await page.click('text=Allow all cookies', { timeout: 5000 });
+    console.log("🍪 Accepted cookies popup");
+  } catch (_) {}
+
+  await page.waitForSelector('input[name="username"]', { timeout: 20000 });
+
+  console.log("⌨️ Typing credentials...");
+  await page.fill('input[name="username"]', USERNAME);
+  await page.fill('input[name="password"]', PASSWORD);
   await Promise.all([
     page.click('button[type="submit"]'),
-    page.waitForNavigation({ waitUntil: "networkidle" }),
+    page.waitForLoadState("domcontentloaded", { timeout: 60000 }),
   ]);
-  await new Promise(r => setTimeout(r, 5000));
+
+  // ننتظر لحد ما نخرج من صفحة الـ login
+  await page.waitForFunction(
+    () => !window.location.href.includes("/login"),
+    { timeout: 90000 }
+  );
+
+  console.log("✅ Logged in successfully!");
+  console.log("📍 Current URL:", page.url());
+
+  await new Promise((r) => setTimeout(r, 3000));
 
   const cookies = (await page.context().cookies())
-    .map(c => `${c.name}=${c.value}`)
+    .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
   await browser.close();
   return cookies;
 }
+
 
 async function getInstagramProfile(username, cookies) {
   const headers = {
