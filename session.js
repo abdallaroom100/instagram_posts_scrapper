@@ -81,10 +81,14 @@ async function loginAndGetCookies() {
     ],
   });
 
-  const page = await browser.newPage();
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
-  );
+  // ✳️ إنشاء context فيه الـ userAgent و viewport
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    viewport: { width: 1280, height: 800 },
+  });
+
+  const page = await context.newPage();
 
   console.log("🌍 Opening Instagram login...");
   await page.goto("https://www.instagram.com/accounts/login/", {
@@ -98,17 +102,16 @@ async function loginAndGetCookies() {
     console.log("🍪 Accepted cookies popup");
   } catch (_) {}
 
-  await page.waitForSelector('input[name="username"]', { timeout: 20000 });
-
   console.log("⌨️ Typing credentials...");
-  await page.fill('input[name="username"]', USERNAME);
-  await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="username"]', YOUR_USERNAME);
+  await page.fill('input[name="password"]', YOUR_PASSWORD);
+
   await Promise.all([
     page.click('button[type="submit"]'),
     page.waitForLoadState("domcontentloaded", { timeout: 60000 }),
   ]);
 
-  // ننتظر لحد ما نخرج من صفحة الـ login
+  // ننتظر الخروج من صفحة login
   await page.waitForFunction(
     () => !window.location.href.includes("/login"),
     { timeout: 90000 }
@@ -119,7 +122,8 @@ async function loginAndGetCookies() {
 
   await new Promise((r) => setTimeout(r, 3000));
 
-  const cookies = (await page.context().cookies())
+  // 🔐 الحصول على الكوكيز
+  const cookies = (await context.cookies())
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
 
