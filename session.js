@@ -57,92 +57,144 @@
 // })();
 
 
-const USERNAME = "abdallarroom13";
-const PASSWORD = "Az01027101373@#";
+
 
 // import puppeteer from "puppeteer";
 import { chromium } from "playwright";
+import fetch from "node-fetch";
 import fs from "fs";
 
-const COOKIES_PATH = "./cookies.json";
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
+const TARGET_USER = "nannis_cakes";
+const USERNAME = "abdallarroom13";
+const PASSWORD = "Az01027101373@#";
 
-async function loginAndSaveCookies() {
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({ userAgent: USER_AGENT });
+async function loginAndGetCookies() {
+  console.log("🔐 Logging in...");
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",
+    ],
+  });
+
+  // ✳️ إنشاء context فيه الـ userAgent و viewport
+  const context = await browser.newContext({
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    viewport: { width: 1280, height: 800 },
+  });
+
   const page = await context.newPage();
 
   console.log("🌍 Opening Instagram login...");
-  await page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "networkidle" });
+  await page.goto("https://www.instagram.com/accounts/login/", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
 
-  await page.waitForSelector('input[name="username"]');
+  // أحيانًا بيظهر cookie banner لازم يتقفل
+  try {
+    await page.click('text=Allow all cookies', { timeout: 5000 });
+    console.log("🍪 Accepted cookies popup");
+  } catch (_) {}
+
   console.log("⌨️ Typing credentials...");
   await page.fill('input[name="username"]', USERNAME);
   await page.fill('input[name="password"]', PASSWORD);
-  await page.click('button[type="submit"]');
 
-  await page.waitForTimeout(8000);
+  await Promise.all([
+    page.click('button[type="submit"]'),
+    page.waitForLoadState("domcontentloaded", { timeout: 60000 }),
+  ]);
 
-  const cookies = await context.cookies();
-  fs.writeFileSync(COOKIES_PATH, JSON.stringify(cookies, null, 2));
-  console.log("🍪 Cookies saved!");
+  // ننتظر الخروج من صفحة login
+  await page.waitForFunction(
+    () => !window.location.href.includes("/login"),
+    { timeout: 90000 }
+  );
+
+  console.log("✅ Logged in successfully!");
+  console.log("📍 Current URL:", page.url());
+
+  await new Promise((r) => setTimeout(r, 3000));
+
+  // 🔐 الحصول على الكوكيز
+  const cookies = (await context.cookies())
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
 
   await browser.close();
+  return cookies;
 }
 
-async function fetchProfileAndPosts(username) {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    userAgent: USER_AGENT,
-    storageState: COOKIES_PATH,
-  });
-  const page = await context.newPage();
 
-  console.log(`📊 Fetching profile for ${username}...`);
-  await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: "networkidle" });
+async function getInstagramProfile(username, cookies) {
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Cookie": cookies,
+  };
+  const res = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
+    { headers }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const json = await res.json();
+  return json.data.user;
+}
 
-  // جلب بيانات JSON الحقيقية من داخل الصفحة
-  const data = await page.evaluate(() => {
-    const script = Array.from(document.scripts).find(s => s.textContent.includes("window._sharedData"));
-    if (!script) return null;
-    const jsonText = script.textContent.match(/window\._sharedData\s*=\s*(\{.*\});/)[1];
-    return JSON.parse(jsonText);
-  });
+async function getUserPosts(userId, cookies, count = 12) {
+  const queryHash = "69cba40317214236af40e7efa697781d";
+  const variables = { id: userId, first: count };
+  const url = `https://www.instagram.com/graphql/query/?query_hash=${queryHash}&variables=${encodeURIComponent(
+    JSON.stringify(variables)
+  )}`;
 
-  if (!data) {
-    console.error("❌ Could not extract profile data!");
-    await browser.close();
-    return;
-  }
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Cookie": cookies,
+  };
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(await res.text());
+  const json = await res.json();
 
-  console.log("✅ Got profile data!");
-  const user = data.entry_data.ProfilePage[0].graphql.user;
-  console.log("📌 Username:", user.username);
-  console.log("👥 Followers:", user.edge_followed_by.count);
-  console.log("📷 Posts:", user.edge_owner_to_timeline_media.count);
-
-  console.log("🖼️ Fetching posts...");
-  const posts = user.edge_owner_to_timeline_media.edges.map(p => ({
-    id: p.node.id,
-    image: p.node.display_url,
-    likes: p.node.edge_liked_by.count,
-    caption: p.node.edge_media_to_caption.edges[0]?.node.text || "",
+  return json.data.user.edge_owner_to_timeline_media.edges.map(e => ({
+    id: e.node.id,
+    caption: e.node.edge_media_to_caption.edges[0]?.node.text || "",
+    image: e.node.display_url,
+    likes: e.node.edge_liked_by.count,
+    comments: e.node.edge_media_to_comment.count,
+    url: `https://www.instagram.com/p/${e.node.shortcode}/`,
+    type: e.node.is_video ? "video" : "image",
   }));
-
-  console.log("✅ Got", posts.length, "posts!");
-  console.log(posts.slice(0, 3)); // أول 3 بوستات مثال
-
-  await browser.close();
 }
 
 (async () => {
-  if (!fs.existsSync(COOKIES_PATH)) {
-    await loginAndSaveCookies();
+  try {
+    const cookies = await loginAndGetCookies();
+    console.log("🍪 Got cookies!");
+
+    console.log("📊 Fetching profile...");
+    const user = await getInstagramProfile(TARGET_USER, cookies);
+    console.log("✅ Profile:", user.username);
+
+    console.log("🖼️ Fetching posts...");
+    const posts = await getUserPosts(user.id, cookies);
+    console.log(`✅ Got ${posts.length} posts`);
+
+    fs.writeFileSync(
+      `${TARGET_USER}_data.json`,
+      JSON.stringify({ profile: user, posts }, null, 2)
+    );
+
+    console.log("💾 Done!");
+  } catch (e) {
+    console.error("❌ Error:", e.message);
   }
-  await fetchProfileAndPosts("instagram"); // استبدل باليوزر اللي عايزه
 })();
-
-
 
 
 
