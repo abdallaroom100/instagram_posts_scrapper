@@ -71,37 +71,46 @@ const YOUR_PASSWORD = "Az01027101373@#";
 const COOKIES_FILE = "cookies.json";
 
 async function loginAndGetCookies() {
-  console.log("🔐 Logging in to get cookies...");
+const browser = await puppeteer.launch({
+  headless: true, // لو عايز تشوف إيه بيحصل حط false مؤقتًا
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+  ],
+});
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-blink-features=AutomationControlled",
-    ],
-  });
+const page = await browser.newPage();
 
-  const page = await browser.newPage();
+// ✅ استخدم domcontentloaded بدل networkidle2
+await page.goto(INSTAGRAM_LOGIN_URL, {
+  waitUntil: "domcontentloaded",
+  timeout: 60000,
+});
 
-  await page.goto(INSTAGRAM_LOGIN_URL, { waitUntil: "networkidle2" });
-  await page.waitForSelector('input[name="username"]');
-  await page.type('input[name="username"]', YOUR_USERNAME);
-  await page.type('input[name="password"]', YOUR_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 });
+// ✅ انتظر ظهور الـ input عشان تتأكد إن الصفحة اتحملت
+await page.waitForSelector('input[name="username"]', { timeout: 30000 });
 
-  const cookies = await page.cookies();
-  await browser.close();
+// ✅ اكتب بيانات الدخول
+await page.type('input[name="username"]', YOUR_USERNAME, { delay: 80 });
+await page.type('input[name="password"]', YOUR_PASSWORD, { delay: 80 });
 
-  const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+// ✅ دوس تسجيل الدخول
+await Promise.all([
+  page.click('button[type="submit"]'),
+  page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
+]);
 
-  // ✅ حفظ الكوكيز
-  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+// ✅ بعد ما يسجل الدخول، خُد الكوكيز
+const cookies = await page.cookies();
+await browser.close();
 
-  console.log("✅ Cookies saved successfully.");
-  return cookieString;
+const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+console.log("✅ Cookies obtained:", cookieString.substring(0, 150) + "...");
+
+return cookieString;
+
 }
 
 async function loadCookies() {
