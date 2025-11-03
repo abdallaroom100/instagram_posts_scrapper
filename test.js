@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer";
-
+import fetch from "node-fetch";
+import fs from "fs";
 
 /**
  * Launches a Puppeteer browser, navigates to a webpage, and then closes the browser.
