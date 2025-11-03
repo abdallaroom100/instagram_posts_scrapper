@@ -62,7 +62,6 @@
 import puppeteer from "puppeteer";
 import fetch from "node-fetch";
 import fs from "fs";
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
 const TARGET_USER = "nannis_cakes";
@@ -71,7 +70,7 @@ const YOUR_PASSWORD = "Az01027101373@#";
 
 const COOKIES_FILE = "cookies.json";
 
-puppeteer.use(StealthPlugin());
+
 async function loginAndGetCookies() {
 // const browser = await puppeteer.launch({
 //     headless: true,
