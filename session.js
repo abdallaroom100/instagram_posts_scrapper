@@ -71,15 +71,29 @@ const YOUR_PASSWORD = "Az01027101373@#";
 const COOKIES_FILE = "cookies.json";
 
 async function loginAndGetCookies() {
+// const browser = await puppeteer.launch({
+//     headless: true,
+//     args: [
+//       '--no-sandbox', // مهم جداً للسيرفرات
+//       '--disable-setuid-sandbox',
+//       '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
+//     ],
+//   });
 const browser = await puppeteer.launch({
     headless: true,
+    executablePath: '/usr/bin/chromium-browser', // ⬅️ مهم جداً
     args: [
-      '--no-sandbox', // مهم جداً للسيرفرات
+      '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-blink-features=AutomationControlled', // لتجنب الكشف
+      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
     ],
   });
-
 const page = await browser.newPage();
 
 // ✅ استخدم domcontentloaded بدل networkidle2
