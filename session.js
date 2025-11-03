@@ -81,7 +81,7 @@ async function loginAndGetCookies() {
 //   });
 const browser = await puppeteer.launch({
     headless: true,
-    executablePath: '/usr/bin/chromium-browser', // ⬅️ مهم جداً
+    executablePath: '/usr/bin/chromium', // ⬅️ مهم جداً
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
