@@ -275,7 +275,10 @@ const YOUR_PASSWORD = "Az01027101373@#";
     await new Promise(resolve=>setTimeout(resolve, 1000))
 
     console.log("🔐 Clicking login...");
-    await page.click('button[type="submit"]');
+   await Promise.all([
+  page.click('button[type="submit"]'),
+  page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
+]);
 
     console.log("⏳ Waiting for navigation...");
     await page.waitForURL(/instagram.com\/(?!accounts\/login)/, { 
