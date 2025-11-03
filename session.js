@@ -62,6 +62,7 @@
 import puppeteer from "puppeteer";
 import fetch from "node-fetch";
 import fs from "fs";
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
 const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
 const TARGET_USER = "nannis_cakes";
@@ -70,6 +71,7 @@ const YOUR_PASSWORD = "Az01027101373@#";
 
 const COOKIES_FILE = "cookies.json";
 
+puppeteer.use(StealthPlugin());
 async function loginAndGetCookies() {
 // const browser = await puppeteer.launch({
 //     headless: true,
@@ -79,19 +81,13 @@ async function loginAndGetCookies() {
 //       '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
 //     ],
 //   });
-const browser = await puppeteer.launch({
-    headless: false,
-    executablePath: '/usr/bin/chromium', // ⬅️ مهم جداً
+ const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: '/usr/bin/google-chrome',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu',
-      '--disable-blink-features=AutomationControlled', // لتجنب الكشف
-      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
     ],
   });
 const page = await browser.newPage();
