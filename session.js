@@ -69,11 +69,15 @@ const YOUR_USERNAME = 'abdallarroom13';
 const YOUR_PASSWORD = 'Az01027101373@#';
 
 async function loginAndGetCookies() {
-  const browser = await puppeteer.launch({ 
-    headless: "shell",
-    defaultViewport: null,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  const browser = await puppeteer.launch({
+  headless: true, // ✅ خليها كده على السيرفر
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-blink-features=AutomationControlled",
+  ],
+})
   const page = await browser.newPage();
   
   await page.goto(INSTAGRAM_LOGIN_URL, { waitUntil: 'networkidle2' });
