@@ -17,7 +17,7 @@ const YOUR_USERNAME = "abdallarroom13";
 const YOUR_PASSWORD = "Az01027101373@#";
 
 const COOKIES_FILE = "cookies.json";
-const runPuppeteer = async () => {
+const loginAndGetCookies = async () => {
   try {
     // Launch a Puppeteer browser instance with custom arguments
     const browser = await puppeteer.launch({
@@ -187,4 +187,3 @@ async function getUserPosts(userId, cookies, count = 12) {
   }
 })();
 // Execute the function
-runPuppeteer();
