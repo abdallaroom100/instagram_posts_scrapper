@@ -289,11 +289,7 @@ async function loginAndSaveCookies() {
 }
 
 async function loadCookies() {
-  if (fs.existsSync(COOKIES_FILE)) {
-    console.log("🍪 Loading cookies from file...");
-    const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, "utf8"));
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-  }
+  
   return null;
 }
 
