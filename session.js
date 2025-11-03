@@ -82,14 +82,17 @@ async function loginAndGetCookies() {
 //     ],
 //   });
  const browser = await puppeteer.launch({
-    headless: false,
-    executablePath: '/usr/bin/google-chrome',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-  });
+  headless: true,
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-blink-features=AutomationControlled",
+    "--log-level=3",            // يخلي اللوج قليل
+    "--disable-logging"         // يمنع بعض التحذيرات
+  ]
+});
 const page = await browser.newPage();
 
 // ✅ استخدم domcontentloaded بدل networkidle2
