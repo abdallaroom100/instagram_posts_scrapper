@@ -72,14 +72,13 @@ const COOKIES_FILE = "cookies.json";
 
 async function loginAndGetCookies() {
 const browser = await puppeteer.launch({
-  headless: true, // لو عايز تشوف إيه بيحصل حط false مؤقتًا
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-blink-features=AutomationControlled",
-  ],
-});
+    headless: true,
+    args: [
+      '--no-sandbox', // مهم جداً للسيرفرات
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
+    ],
+  });
 
 const page = await browser.newPage();
 
