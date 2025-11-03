@@ -1,42 +1,42 @@
 import puppeteer from "puppeteer";
 
-(async () => {
-  try {
-    console.log("🚀 Launching browser...");
-    
-    const browser = await puppeteer.launch({
-    headless: true,
-    dumpio: true, // ⬅️ ضيف السطر ده
-    executablePath: '/usr/bin/chromium',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-    ],
-  });
 
-    const page = await browser.newPage();
-    
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36');
-    await page.setViewport({ width: 1920, height: 1080 });
-    
-    console.log("🌐 Opening Instagram...");
-    
-    await page.goto('https://www.instagram.com/', { 
-      waitUntil: 'networkidle2', 
-      timeout: 120000 
+/**
+ * Launches a Puppeteer browser, navigates to a webpage, and then closes the browser.
+ *
+ * Launch Options:
+ * - headless: Run the browser in headless mode (no GUI).
+ * - args:
+ *   - "--no-sandbox": Required if running as the root user.
+ *   - "--disable-setuid-sandbox": Optional, try if you encounter sandbox errors.
+ */
+
+const runPuppeteer = async () => {
+  try {
+    // Launch a Puppeteer browser instance with custom arguments
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+      ],
     });
-    
-    console.log("✅ Instagram loaded!");
-    
-    // خد screenshot
-    await page.screenshot({ path: 'instagram.png' });
-    console.log("📸 Screenshot saved as instagram.png");
-    
+
+    // Open a new page in the browser
+    const page = await browser.newPage();
+
+    // Navigate to the specified URL
+    await page.goto("https://www.google.com");
+
+    console.log("Navigation to Google completed.");
+
+    // Close the browser
     await browser.close();
-    
+    console.log("Browser closed successfully.");
   } catch (error) {
-    console.error("❌ Error:", error.message);
-    console.error("Full error:", error);
+    console.error("An error occurred:", error);
   }
-})();
+};
+
+// Execute the function
+runPuppeteer();
