@@ -59,7 +59,8 @@
 
 
 
-import puppeteer from "puppeteer";
+// import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import fetch from "node-fetch";
 import fs from "fs";
 
@@ -70,28 +71,16 @@ const YOUR_PASSWORD = "Az01027101373@#";
 
 const COOKIES_FILE = "cookies.json";
 
-
 async function loginAndGetCookies() {
-// const browser = await puppeteer.launch({
-//     headless: true,
-//     args: [
-//       '--no-sandbox', // مهم جداً للسيرفرات
-//       '--disable-setuid-sandbox',
-//       '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
-//     ],
-//   });
- const browser = await puppeteer.launch({
-  headless: true,
-  args: [
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--disable-blink-features=AutomationControlled",
-    "--log-level=3",            // يخلي اللوج قليل
-    "--disable-logging"         // يمنع بعض التحذيرات
-  ]
-});
+const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--no-sandbox', // مهم جداً للسيرفرات
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage' // قد يساعد في بيئات الذاكرة المحدودة (مثل Docker)
+    ],
+  });
+
 const page = await browser.newPage();
 
 // ✅ استخدم domcontentloaded بدل networkidle2
