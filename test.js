@@ -1,5 +1,4 @@
 // import puppeteer from "puppeteer";
-// import { chromium } from "playwright";
 // import fs from "fs";
 // import fetch from "node-fetch";
 
@@ -137,14 +136,10 @@
 // }
 
 // scrapeInstagram();
-// scrape.js
+// scrape_ephemeral.js
 import { chromium } from "playwright";
-import fs from "fs";
 import fetch from "node-fetch";
 
-/**
- * ضبط هنا — تقدر تغيّر القيم أو تستخدم ENV بدل الحط المباشر
- */
 const config = {
   username: "abdallarroom13",
   password: "Az01027101373@#",
@@ -153,10 +148,8 @@ const config = {
   postsLimit: 9,
 };
 
-const COOKIES_FILE = "cookies.json";
-
-async function loginAndGetCookies() {
-  console.log("🔐 Logging into Instagram...");
+async function loginAndGetCookiesHeader() {
+  console.log("🔐 Logging into Instagram (ephemeral cookies)...");
 
   const browser = await chromium.launch({
     headless: true,
@@ -172,15 +165,11 @@ async function loginAndGetCookies() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  // stealth: خفي navigator.webdriver قبل أي تحميل
+  // stealth: hide webdriver before any page script runs
   await page.addInitScript(() => {
     try {
-      Object.defineProperty(navigator, "webdriver", {
-        get: () => false,
-      });
-    } catch (e) {
-      // ignore
-    }
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+    } catch (e) {}
   });
 
   await page.setUserAgent(
@@ -209,27 +198,16 @@ async function loginAndGetCookies() {
 
   if (currentUrl.includes("/challenge/")) {
     await browser.close();
-    throw new Error(
-      "Instagram triggered a login challenge. Please login manually once."
-    );
+    throw new Error("Instagram triggered a login challenge. Please login manually once.");
   }
 
   const cookies = await context.cookies();
-  await fs.promises.writeFile(COOKIES_FILE, JSON.stringify(cookies, null, 2));
-  console.log("🍪 Cookies saved!");
+  // build header string but DO NOT persist to disk
+  const cookiesHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+  console.log("🍪 Cookies retrieved (ephemeral).");
   await browser.close();
-
-  return cookiesToHeader(cookies);
-}
-
-async function loadCookies() {
-  if (!fs.existsSync(COOKIES_FILE)) return null;
-  const cookies = JSON.parse(await fs.promises.readFile(COOKIES_FILE, "utf8"));
-  return cookiesToHeader(cookies);
-}
-
-function cookiesToHeader(cookies) {
-  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  return cookiesHeader;
 }
 
 async function fetchInstagramAPI(endpoint, cookiesHeader) {
@@ -241,7 +219,7 @@ async function fetchInstagramAPI(endpoint, cookiesHeader) {
     Cookie: cookiesHeader,
   };
 
-  const res = await fetch(`${config.host}${endpoint}`, { headers });
+  const res = await fetch(`https://www.instagram.com${endpoint}`, { headers });
   const text = await res.text();
 
   if (!res.ok) {
@@ -255,12 +233,10 @@ async function fetchInstagramAPI(endpoint, cookiesHeader) {
   }
 }
 
-async function scrapeInstagram() {
+async function scrapeInstagramEphemeral() {
   try {
-    let cookiesHeader = await loadCookies();
-    if (!cookiesHeader) {
-      cookiesHeader = await loginAndGetCookies();
-    }
+    // always login and use the cookies immediately (no file I/O)
+    const cookiesHeader = await loginAndGetCookiesHeader();
 
     console.log(`📊 Fetching profile for ${config.targetUser}...`);
     const profileResp = await fetchInstagramAPI(
@@ -287,12 +263,14 @@ async function scrapeInstagram() {
     }));
 
     const result = { profile: user, posts };
-    fs.writeFileSync(`${config.targetUser}_data.json`, JSON.stringify(result, null, 2));
-    console.log(`💾 Data saved to ${config.targetUser}_data.json`);
+    console.log("✅ Result:", JSON.stringify(result, null, 2));
+
+    // إذا حبيت ترجع النتيجة من الدالة بدل console.log:
+    return result;
   } catch (err) {
     console.error("❌ Error:", err.message);
-    console.error("💡 Tip: If you get blocked, delete cookies.json and re-login.");
   }
 }
 
-scrapeInstagram();
+// شغّل
+scrapeInstagramEphemeral();
