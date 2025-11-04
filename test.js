@@ -271,27 +271,28 @@
 // }
 
 // scrapeInstagramEphemeral();
-import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import fetch from "node-fetch";
 import fs from "fs";
 
-// ===== إعدادات أساسية =====
+// ===== الإعدادات الأساسية =====
 const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
-const TARGET_USER = "nannis_cakes"; // ✏️ اسم الحساب اللي عايز تجيبه
-const YOUR_USERNAME = "abdallarroom13"; // ✏️ حسابك الشخصي لتسجيل الدخول
-const YOUR_PASSWORD = "Az01027101373@#"; // ✏️ الباسورد
-const COOKIES_FILE = "cookies.json"; // لحفظ الكوكيز بعد كل تسجيل
+const TARGET_USER = "nannis_cakes";
+const YOUR_USERNAME = "abdallarroom13";
+const YOUR_PASSWORD = "Az01027101373@#";
+const COOKIES_FILE = "cookies.json";
 
 // ===== تسجيل الدخول وجلب الكوكيز =====
 async function loginAndGetCookies() {
-  // 🧹 امسح أي كوكيز قديمة
+  // 🧹 احذف أي كوكيز قديمة
   if (fs.existsSync(COOKIES_FILE)) {
     fs.unlinkSync(COOKIES_FILE);
     console.log("🧹 Deleted old cookies.json");
   }
 
-  // 🚀 تشغيل المتصفح
-  const browser = await puppeteer.launch({
+  console.log("🚀 Launching Playwright browser...");
+
+  const browser = await chromium.launch({
     headless: true,
     args: [
       "--no-sandbox",
@@ -299,12 +300,12 @@ async function loginAndGetCookies() {
       "--disable-dev-shm-usage",
       "--disable-gpu",
       "--disable-blink-features=AutomationControlled",
-      "--log-level=3",
-      "--disable-logging",
     ],
   });
 
-  const page = await browser.newPage();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
   await page.goto(INSTAGRAM_LOGIN_URL, {
     waitUntil: "domcontentloaded",
     timeout: 60000,
@@ -312,8 +313,8 @@ async function loginAndGetCookies() {
 
   // ✏️ إدخال بيانات تسجيل الدخول
   await page.waitForSelector('input[name="username"]', { timeout: 30000 });
-  await page.type('input[name="username"]', YOUR_USERNAME, { delay: 80 });
-  await page.type('input[name="password"]', YOUR_PASSWORD, { delay: 80 });
+  await page.fill('input[name="username"]', YOUR_USERNAME);
+  await page.fill('input[name="password"]', YOUR_PASSWORD);
 
   await Promise.all([
     page.click('button[type="submit"]'),
@@ -321,14 +322,13 @@ async function loginAndGetCookies() {
   ]);
 
   // ✅ الحصول على الكوكيز بعد تسجيل الدخول
-  const cookies = await page.cookies();
+  const cookies = await context.cookies();
   await browser.close();
 
-  // 🧾 حفظ الكوكيز الجديدة (اختياري)
   fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+  console.log("✅ Logged in and got fresh cookies.");
 
   const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-  console.log("✅ Logged in and got fresh cookies.");
   return cookieString;
 }
 
@@ -357,7 +357,7 @@ async function getInstagramProfile(username, cookies) {
   return json.data.user;
 }
 
-// ===== جلب البوستات الأخيرة =====
+// ===== جلب البوستات =====
 async function getUserPosts(userId, cookies, count = 12) {
   const headers = {
     "User-Agent":
@@ -385,7 +385,7 @@ async function getUserPosts(userId, cookies, count = 12) {
 // ===== التشغيل الأساسي =====
 (async () => {
   try {
-    console.log("🔐 Logging into Instagram...");
+    console.log("🔐 Logging into Instagram with Playwright...");
     const cookies = await loginAndGetCookies();
 
     console.log("\n📊 Fetching profile data...");
@@ -436,8 +436,6 @@ async function getUserPosts(userId, cookies, count = 12) {
     console.log(`💾 Data saved to ${TARGET_USER}_data.json`);
   } catch (err) {
     console.error("❌ Error:", err.message);
-    console.error(
-      "💡 Tip: امسح cookies.json وشغّل تاني لو حصل Block أو Timeout."
-    );
+    console.error("💡 Tip: امسح cookies.json وشغّل تاني لو حصل Block أو Timeout.");
   }
 })();
