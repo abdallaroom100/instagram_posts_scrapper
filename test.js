@@ -271,79 +271,83 @@
 // }
 
 // scrapeInstagramEphemeral();
-import { chromium } from 'playwright';
-import fs from 'fs';
-import fetch from 'node-fetch';
+import puppeteer from "puppeteer";
+import fetch from "node-fetch";
+import fs from "fs";
 
-const TARGET_USER = "nannis_cakes";
-const YOUR_USERNAME = "abdallarroom13";
-const YOUR_PASSWORD = "Az01027101373@#";
-const COOKIES_FILE = "cookies.json";
+// ===== إعدادات أساسية =====
+const INSTAGRAM_LOGIN_URL = "https://www.instagram.com/accounts/login/";
+const TARGET_USER = "nannis_cakes"; // ✏️ اسم الحساب اللي عايز تجيبه
+const YOUR_USERNAME = "abdallarroom13"; // ✏️ حسابك الشخصي لتسجيل الدخول
+const YOUR_PASSWORD = "Az01027101373@#"; // ✏️ الباسورد
+const COOKIES_FILE = "cookies.json"; // لحفظ الكوكيز بعد كل تسجيل
 
-async function loginAndSaveCookies() {
-  console.log("🚀 Launching browser...");
+// ===== تسجيل الدخول وجلب الكوكيز =====
+async function loginAndGetCookies() {
+  // 🧹 امسح أي كوكيز قديمة
+  if (fs.existsSync(COOKIES_FILE)) {
+    fs.unlinkSync(COOKIES_FILE);
+    console.log("🧹 Deleted old cookies.json");
+  }
 
-  const browser = await chromium.launch({
+  // 🚀 تشغيل المتصفح
+  const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--disable-blink-features=AutomationControlled",
+      "--log-level=3",
+      "--disable-logging",
+    ],
   });
 
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    viewport: { width: 1920, height: 1080 }
+  const page = await browser.newPage();
+  await page.goto(INSTAGRAM_LOGIN_URL, {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
   });
 
-  const page = await context.newPage();
-
-  console.log("🌐 Opening Instagram login page...");
-  await page.goto('https://www.instagram.com/accounts/login/', { waitUntil: 'networkidle', timeout: 90000 });
-
+  // ✏️ إدخال بيانات تسجيل الدخول
   await page.waitForSelector('input[name="username"]', { timeout: 30000 });
-  await page.fill('input[name="username"]', YOUR_USERNAME);
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  await page.fill('input[name="password"]', YOUR_PASSWORD);
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await page.type('input[name="username"]', YOUR_USERNAME, { delay: 80 });
+  await page.type('input[name="password"]', YOUR_PASSWORD, { delay: 80 });
 
-  console.log("🔐 Clicking login...");
   await Promise.all([
     page.click('button[type="submit"]'),
-    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 90000 }),
+    page.waitForNavigation({ waitUntil: "domcontentloaded", timeout: 60000 }),
   ]);
 
-  await page.waitForURL(/instagram.com\/(?!accounts\/login)/, { timeout: 90000 });
-
-  console.log("✅ Logged in successfully! Saving cookies...");
-
-  const cookies = await context.cookies();
-  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
-
+  // ✅ الحصول على الكوكيز بعد تسجيل الدخول
+  const cookies = await page.cookies();
   await browser.close();
 
-  const cookieString = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-  console.log("🍪 Cookies string:", cookieString.substring(0, 150) + "...");
+  // 🧾 حفظ الكوكيز الجديدة (اختياري)
+  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
 
+  const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+  console.log("✅ Logged in and got fresh cookies.");
   return cookieString;
 }
 
-async function loadCookies() {
-  if (fs.existsSync(COOKIES_FILE)) {
-    console.log("🍪 Loading cookies from file...");
-    const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, "utf8"));
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-  }
-  return null;
-}
-
+// ===== جلب بيانات البروفايل =====
 async function getInstagramProfile(username, cookies) {
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "X-IG-App-ID": "936619743392459",
     "X-CSRFToken": cookies.split("csrftoken=")[1]?.split(";")[0] || "",
     "Cookie": cookies,
   };
 
-  const res = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, { headers });
+  const res = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
+    { headers }
+  );
+
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`HTTP ${res.status}: ${errorText}`);
@@ -353,16 +357,22 @@ async function getInstagramProfile(username, cookies) {
   return json.data.user;
 }
 
+// ===== جلب البوستات الأخيرة =====
 async function getUserPosts(userId, cookies, count = 12) {
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "X-IG-App-ID": "936619743392459",
     "X-CSRFToken": cookies.split("csrftoken=")[1]?.split(";")[0] || "",
     "Cookie": cookies,
   };
 
-  const res = await fetch(`https://i.instagram.com/api/v1/feed/user/${userId}/?count=${count}`, { headers });
+  const res = await fetch(
+    `https://i.instagram.com/api/v1/feed/user/${userId}/?count=${count}`,
+    { headers }
+  );
+
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`HTTP ${res.status} for posts: ${errorText}`);
@@ -372,12 +382,11 @@ async function getUserPosts(userId, cookies, count = 12) {
   return json.items || [];
 }
 
+// ===== التشغيل الأساسي =====
 (async () => {
   try {
-    let cookies = await loadCookies();
-    if (!cookies) {
-      cookies = await loginAndSaveCookies();
-    }
+    console.log("🔐 Logging into Instagram...");
+    const cookies = await loginAndGetCookies();
 
     console.log("\n📊 Fetching profile data...");
     const user = await getInstagramProfile(TARGET_USER, cookies);
@@ -394,7 +403,7 @@ async function getUserPosts(userId, cookies, count = 12) {
       user_id: user.id,
     };
 
-    console.log("📊 Profile:", profileData);
+    console.log("✅ Profile fetched successfully.");
 
     console.log("\n🖼️ Fetching latest posts...");
     const postsRaw = await getUserPosts(user.id, cookies, 12);
@@ -403,7 +412,7 @@ async function getUserPosts(userId, cookies, count = 12) {
       const shortcode = post.shortcode || post.code || "undefined";
       return {
         caption:
-          post.edge_media_to_caption?.edges?.[0]?.node?.text ||
+          post.edge_media_to_caption?.edges[0]?.node.text ||
           post.caption?.text ||
           "",
         image:
@@ -419,12 +428,16 @@ async function getUserPosts(userId, cookies, count = 12) {
     });
 
     const fullData = { profile: profileData, posts };
-    fs.writeFileSync(`${TARGET_USER}_data.json`, JSON.stringify(fullData, null, 2));
+    fs.writeFileSync(
+      `${TARGET_USER}_data.json`,
+      JSON.stringify(fullData, null, 2)
+    );
 
     console.log(`💾 Data saved to ${TARGET_USER}_data.json`);
-
   } catch (err) {
     console.error("❌ Error:", err.message);
-    console.error("💡 Tip: لو حصل block أو session انتهت، امسح cookies.json وخليه يسجل تاني.");
+    console.error(
+      "💡 Tip: امسح cookies.json وشغّل تاني لو حصل Block أو Timeout."
+    );
   }
 })();
