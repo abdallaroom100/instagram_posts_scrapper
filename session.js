@@ -60,79 +60,214 @@
 
 
 // import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import fetch from "node-fetch";
 import fs from "fs";
 
 const TARGET_USER = "nannis_cakes";
+const USERNAME = "abdallarroom13";
+const PASSWORD = "Az01027101373@#";
 const COOKIES_FILE = "cookies.json";
 
+// 🎭 User Agent موحّد
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+// 💤 دالة الانتظار
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
 // 🍪 تحميل الكوكيز من الملف
-function loadCookies() {
-  if (!fs.existsSync(COOKIES_FILE)) {
-    console.log("\n❌ cookies.json not found!");
-    console.log("\n📝 Steps to get cookies:");
+function loadCookiesFromFile() {
+  if (fs.existsSync(COOKIES_FILE)) {
+    console.log("🍪 Loading saved cookies...");
+    const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, "utf8"));
+    return cookies;
+  }
+  return null;
+}
+
+// 💾 حفظ الكوكيز في ملف
+function saveCookies(cookies) {
+  fs.writeFileSync(COOKIES_FILE, JSON.stringify(cookies, null, 2));
+  console.log(`💾 Cookies saved to ${COOKIES_FILE}`);
+}
+
+// 🔐 تسجيل الدخول
+async function loginAndGetCookies() {
+  console.log("\n🔐 Starting login process...");
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-blink-features=AutomationControlled",
+      "--disable-dev-shm-usage",
+    ],
+  });
+
+  const context = await browser.newContext({
+    userAgent: USER_AGENT,
+    viewport: { width: 1366, height: 768 },
+    locale: "en-US",
+    timezoneId: "America/New_York",
+  });
+
+  // إضافة headers
+  await context.setExtraHTTPHeaders({
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+  });
+
+  const page = await context.newPage();
+
+  // إخفاء automation
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => false });
+    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3] });
+    window.chrome = { runtime: {} };
+  });
+
+  console.log("🌍 Opening Instagram...");
+  await page.goto("https://www.instagram.com/accounts/login/", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+
+  await sleep(2000);
+
+  // رفض الكوكيز لو ظهر
+  try {
+    const cookieButton = page.locator('button:has-text("Allow all cookies"), button:has-text("Allow essential")').first();
+    if (await cookieButton.isVisible({ timeout: 3000 })) {
+      await cookieButton.click();
+      console.log("🍪 Handled cookies popup");
+      await sleep(1000);
+    }
+  } catch (_) {}
+
+  console.log("⏳ Waiting for login form...");
+  await page.waitForSelector('input[name="username"]', { timeout: 20000 });
+  await sleep(1500);
+
+  console.log("⌨️  Typing username...");
+  await page.type('input[name="username"]', USERNAME, { delay: 120 });
+  await sleep(800);
+
+  console.log("⌨️  Typing password...");
+  await page.type('input[name="password"]', PASSWORD, { delay: 120 });
+  await sleep(1200);
+
+  console.log("🔐 Submitting login...");
+  await page.click('button[type="submit"]');
+
+  // انتظار التنقل
+  console.log("⏳ Waiting for login response...");
+  await sleep(8000);
+
+  const currentUrl = page.url();
+  console.log("📍 Current URL:", currentUrl);
+
+  // التعامل مع challenge
+  if (currentUrl.includes("/challenge/")) {
+    console.log("\n⚠️  Instagram requires verification!");
+    console.log("🔴 IMPORTANT: You need to verify your account manually:");
     console.log("   1. Open Instagram in your browser");
-    console.log("   2. Login with your account");
-    console.log("   3. Open DevTools (F12)");
-    console.log("   4. Go to Application → Cookies → instagram.com");
-    console.log("   5. Copy all cookies and save them in cookies.json");
-    console.log("\nOr run the cookie extractor on your PC first!\n");
-    process.exit(1);
+    console.log("   2. Login with your credentials");
+    console.log("   3. Complete the verification (SMS/Email)");
+    console.log("   4. Once verified, run this script again\n");
+    
+    await browser.close();
+    throw new Error("Instagram requires manual verification. Please complete it and try again.");
   }
-  
-  const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, "utf8"));
-  
-  // تحويل array إلى string
-  if (Array.isArray(cookies)) {
-    return cookies.map(c => `${c.name}=${c.value}`).join("; ");
+
+  if (currentUrl.includes("/accounts/login/")) {
+    console.log("\n❌ Login failed! Credentials might be incorrect.");
+    await browser.close();
+    throw new Error("Login failed - still on login page");
   }
+
+  // التعامل مع "Save Login Info"
+  try {
+    const notNowButton = page.locator('button:has-text("Not now"), button:has-text("Not Now")').first();
+    if (await notNowButton.isVisible({ timeout: 5000 })) {
+      await notNowButton.click();
+      console.log("✅ Skipped 'Save Login Info'");
+      await sleep(2000);
+    }
+  } catch (_) {}
+
+  // التعامل مع "Turn on Notifications"
+  try {
+    const notNowButton = page.locator('button:has-text("Not now"), button:has-text("Not Now")').first();
+    if (await notNowButton.isVisible({ timeout: 3000 })) {
+      await notNowButton.click();
+      console.log("✅ Skipped 'Notifications'");
+      await sleep(2000);
+    }
+  } catch (_) {}
+
+  console.log("✅ Login successful!");
+  await sleep(3000);
+
+  // الحصول على الكوكيز
+  const cookies = await context.cookies();
   
-  // لو مش array، يبقى string جاهز
+  if (cookies.length === 0) {
+    await browser.close();
+    throw new Error("No cookies received!");
+  }
+
+  // حفظ الكوكيز
+  saveCookies(cookies);
+
+  await browser.close();
   return cookies;
+}
+
+// 🔄 تحويل الكوكيز لـ string
+function cookiesToString(cookies) {
+  return cookies.map(c => `${c.name}=${c.value}`).join("; ");
 }
 
 // 📊 جلب بيانات البروفايل
 async function getInstagramProfile(username, cookies) {
-  const csrfToken = cookies.split("csrftoken=")[1]?.split(";")[0] || "";
-  
+  const cookieString = cookiesToString(cookies);
+  const csrfToken = cookies.find(c => c.name === "csrftoken")?.value || "";
+
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "User-Agent": USER_AGENT,
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "X-IG-App-ID": "936619743392459",
     "X-CSRFToken": csrfToken,
     "X-Requested-With": "XMLHttpRequest",
     "Referer": `https://www.instagram.com/${username}/`,
-    "Cookie": cookies,
+    "Cookie": cookieString,
   };
 
   console.log(`\n📊 Fetching profile for @${username}...`);
   
-  try {
-    const res = await fetch(
-      `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
-      { headers }
-    );
+  const res = await fetch(
+    `https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`,
+    { headers }
+  );
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`HTTP ${res.status}: ${errorText}`);
-    }
-
-    const json = await res.json();
-    return json.data.user;
-    
-  } catch (error) {
-    console.error("❌ Profile fetch error:", error.message);
-    throw error;
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("❌ Profile fetch failed:", errorText);
+    throw new Error(`HTTP ${res.status}: ${errorText}`);
   }
+
+  const json = await res.json();
+  return json.data.user;
 }
 
 // 🖼️ جلب المنشورات
 async function getUserPosts(userId, cookies, count = 12) {
-  const csrfToken = cookies.split("csrftoken=")[1]?.split(";")[0] || "";
-  
-  // استخدام GraphQL API
+  const cookieString = cookiesToString(cookies);
+  const csrfToken = cookies.find(c => c.name === "csrftoken")?.value || "";
+
+  // استخدام GraphQL API (أكثر استقراراً)
   const queryHash = "69cba40317214236af40e7efa697781d";
   const variables = { id: userId, first: count };
   const url = `https://www.instagram.com/graphql/query/?query_hash=${queryHash}&variables=${encodeURIComponent(
@@ -140,102 +275,91 @@ async function getUserPosts(userId, cookies, count = 12) {
   )}`;
 
   const headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "User-Agent": USER_AGENT,
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9",
     "X-IG-App-ID": "936619743392459",
     "X-CSRFToken": csrfToken,
     "X-Requested-With": "XMLHttpRequest",
     "Referer": "https://www.instagram.com/",
-    "Cookie": cookies,
+    "Cookie": cookieString,
   };
 
   console.log(`🖼️  Fetching ${count} latest posts...`);
-  
-  // انتظار 2 ثانية قبل الطلب
-  await new Promise(r => setTimeout(r, 2000));
+  await sleep(2000); // انتظار قبل الطلب
 
-  try {
-    const res = await fetch(url, { headers });
+  const res = await fetch(url, { headers });
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`HTTP ${res.status}: ${errorText}`);
-    }
-
-    const json = await res.json();
-
-    if (!json.data?.user?.edge_owner_to_timeline_media?.edges) {
-      console.log("⚠️  No posts found or private account");
-      return [];
-    }
-
-    return json.data.user.edge_owner_to_timeline_media.edges.map((e) => ({
-      id: e.node.id,
-      caption: e.node.edge_media_to_caption.edges[0]?.node.text || "",
-      image: e.node.display_url,
-      likes: e.node.edge_liked_by.count,
-      comments: e.node.edge_media_to_comment.count,
-      url: `https://www.instagram.com/p/${e.node.shortcode}/`,
-      type: e.node.is_video ? "video" : "image",
-      timestamp: e.node.taken_at_timestamp,
-    }));
-    
-  } catch (error) {
-    console.error("❌ Posts fetch error:", error.message);
-    throw error;
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error("❌ Posts fetch failed:", errorText);
+    throw new Error(`HTTP ${res.status}: ${errorText}`);
   }
+
+  const json = await res.json();
+
+  if (!json.data?.user?.edge_owner_to_timeline_media?.edges) {
+    console.log("⚠️  No posts found or private account");
+    return [];
+  }
+
+  return json.data.user.edge_owner_to_timeline_media.edges.map((e) => ({
+    id: e.node.id,
+    caption: e.node.edge_media_to_caption.edges[0]?.node.text || "",
+    image: e.node.display_url,
+    likes: e.node.edge_liked_by.count,
+    comments: e.node.edge_media_to_comment.count,
+    url: `https://www.instagram.com/p/${e.node.shortcode}/`,
+    type: e.node.is_video ? "video" : "image",
+    timestamp: e.node.taken_at_timestamp,
+  }));
 }
 
 // 🎯 البرنامج الرئيسي
 (async () => {
   console.log("═══════════════════════════════════════════");
-  console.log("   📸 Instagram Scraper (Fetch Only)");
+  console.log("   📸 Instagram Profile & Posts Scraper   ");
   console.log("═══════════════════════════════════════════");
 
   try {
-    // 1️⃣ تحميل الكوكيز
-    console.log("\n🍪 Loading cookies...");
-    const cookies = loadCookies();
-    console.log("✅ Cookies loaded successfully");
+    // 1️⃣ محاولة تحميل الكوكيز
+    let cookies = loadCookiesFromFile();
 
-    // 2️⃣ جلب البروفايل
-    const user = await getInstagramProfile(TARGET_USER, cookies);
-
-    const profileData = {
-      username: user.username,
-      name: user.full_name,
-      bio: user.biography,
-      followers: user.edge_followed_by.count,
-      following: user.edge_follow.count,
-      posts_count: user.edge_owner_to_timeline_media.count,
-      is_private: user.is_private,
-      is_verified: user.is_verified,
-      profile_pic: user.profile_pic_url_hd || user.profile_pic_url,
-      user_id: user.id,
-      external_url: user.external_url || null,
-      category: user.category_name || null,
-    };
-
-    console.log("\n✅ Profile Data:");
-    console.log("   👤 Username:", profileData.username);
-    console.log("   📝 Full Name:", profileData.name);
-    console.log("   👥 Followers:", profileData.followers.toLocaleString());
-    console.log("   ➕ Following:", profileData.following.toLocaleString());
-    console.log("   📷 Posts:", profileData.posts_count);
-    console.log("   🔒 Private:", profileData.is_private ? "Yes" : "No");
-    console.log("   ✔️  Verified:", profileData.is_verified ? "Yes" : "No");
-    
-    if (profileData.bio) {
-      console.log("   💬 Bio:", profileData.bio.substring(0, 80) + 
-        (profileData.bio.length > 80 ? "..." : ""));
+    // 2️⃣ إذا لم تكن موجودة، تسجيل الدخول
+    if (!cookies) {
+      console.log("\n⚠️  No saved cookies found. Starting fresh login...");
+      cookies = await loginAndGetCookies();
+    } else {
+      console.log("✅ Using saved cookies from previous session");
+      
+      // التحقق من صلاحية الكوكيز
+      const sessionCookie = cookies.find(c => c.name === "sessionid");
+      if (!sessionCookie) {
+        console.log("⚠️  Invalid cookies, need fresh login");
+        fs.unlinkSync(COOKIES_FILE);
+        cookies = await loginAndGetCookies();
+      }
     }
 
-    // 3️⃣ جلب المنشورات
+    // 3️⃣ جلب البروفايل
+    const user = await getInstagramProfile(TARGET_USER, cookies);
+
+    console.log("\n✅ Profile Data:");
+    console.log("   👤 Username:", user.username);
+    console.log("   📝 Full Name:", user.full_name);
+    console.log("   👥 Followers:", user.edge_followed_by.count.toLocaleString());
+    console.log("   ➕ Following:", user.edge_follow.count.toLocaleString());
+    console.log("   📷 Posts:", user.edge_owner_to_timeline_media.count);
+    console.log("   🔒 Private:", user.is_private ? "Yes" : "No");
+    if (user.biography) {
+      console.log("   💬 Bio:", user.biography.substring(0, 80) + "...");
+    }
+
+    // 4️⃣ جلب المنشورات
     const posts = await getUserPosts(user.id, cookies, 12);
 
     console.log(`\n✅ Fetched ${posts.length} posts`);
-
+    
     if (posts.length > 0) {
       console.log("\nLatest posts preview:");
       posts.slice(0, 3).forEach((post, idx) => {
@@ -247,10 +371,21 @@ async function getUserPosts(userId, cookies, count = 12) {
       });
     }
 
-    // 4️⃣ حفظ البيانات
+    // 5️⃣ حفظ البيانات
     const outputFile = `${TARGET_USER}_data.json`;
     const fullData = {
-      profile: profileData,
+      profile: {
+        username: user.username,
+        name: user.full_name,
+        bio: user.biography,
+        followers: user.edge_followed_by.count,
+        following: user.edge_follow.count,
+        posts_count: user.edge_owner_to_timeline_media.count,
+        is_private: user.is_private,
+        is_verified: user.is_verified,
+        profile_pic: user.profile_pic_url_hd || user.profile_pic_url,
+        user_id: user.id,
+      },
       posts: posts,
       scraped_at: new Date().toISOString(),
       total_posts: posts.length,
@@ -264,19 +399,26 @@ async function getUserPosts(userId, cookies, count = 12) {
 
   } catch (err) {
     console.error("\n❌ Error:", err.message);
-
-    if (err.message.includes("401") || err.message.includes("login")) {
-      console.error("\n💡 Cookies expired or invalid!");
-      console.error("   Solution: Get fresh cookies from your browser");
-    } else if (err.message.includes("429")) {
-      console.error("\n💡 Rate limited by Instagram!");
-      console.error("   Solution: Wait 10-15 minutes and try again");
+    
+    if (err.message.includes("verification") || err.message.includes("challenge")) {
+      console.error("\n💡 Next steps:");
+      console.error("   1. Login to Instagram manually in a browser");
+      console.error("   2. Complete any verification Instagram asks for");
+      console.error("   3. Wait 10-15 minutes");
+      console.error("   4. Run this script again");
+    } else if (err.message.includes("401") || err.message.includes("useragent")) {
+      console.error("\n💡 Cookies might be expired. Deleting them...");
+      if (fs.existsSync(COOKIES_FILE)) {
+        fs.unlinkSync(COOKIES_FILE);
+        console.error("   Run the script again for fresh login");
+      }
     }
-
+    
     console.error("");
     process.exit(1);
   }
 })();
+
 
 
 // import fetch from "node-fetch";
