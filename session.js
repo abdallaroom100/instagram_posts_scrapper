@@ -60,7 +60,7 @@
 
 
 // import puppeteer from "puppeteer";
-import { chromium } from "playwright";
+import puppeteer from "puppeteer";
 import fetch from "node-fetch";
 import fs from "fs";
 
@@ -95,7 +95,7 @@ function saveCookies(cookies) {
 async function loginAndGetCookies() {
   console.log("\n🔐 Starting login process...");
 
-  const browser = await chromium.launch({
+  const browser = await puppeteer.launch({
     headless: true,
     args: [
       "--no-sandbox",
