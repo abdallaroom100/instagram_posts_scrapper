@@ -136,7 +136,7 @@
 // }
 
 // scrapeInstagram();
-// scrape_ephemeral.js
+// scrape_ephemeral_fixed.js
 import { chromium } from "playwright";
 import fetch from "node-fetch";
 
@@ -147,6 +147,9 @@ const config = {
   host: "https://www.instagram.com",
   postsLimit: 9,
 };
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 async function loginAndGetCookiesHeader() {
   console.log("🔐 Logging into Instagram (ephemeral cookies)...");
@@ -162,20 +165,20 @@ async function loginAndGetCookiesHeader() {
     ],
   });
 
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  // حط الـ userAgent على الـ context مباشرة
+  const context = await browser.newContext({
+    userAgent: USER_AGENT,
+    viewport: { width: 1366, height: 768 },
+  });
 
   // stealth: hide webdriver before any page script runs
-  await page.addInitScript(() => {
+  await context.addInitScript(() => {
     try {
       Object.defineProperty(navigator, "webdriver", { get: () => false });
     } catch (e) {}
   });
 
-  await page.setUserAgent(
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-  );
+  const page = await context.newPage();
 
   await page.goto(`${config.host}/accounts/login/`, {
     waitUntil: "networkidle",
@@ -202,7 +205,6 @@ async function loginAndGetCookiesHeader() {
   }
 
   const cookies = await context.cookies();
-  // build header string but DO NOT persist to disk
   const cookiesHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
   console.log("🍪 Cookies retrieved (ephemeral).");
@@ -212,8 +214,7 @@ async function loginAndGetCookiesHeader() {
 
 async function fetchInstagramAPI(endpoint, cookiesHeader) {
   const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": USER_AGENT,
     Accept: "*/*",
     "X-IG-App-ID": "936619743392459",
     Cookie: cookiesHeader,
@@ -235,7 +236,6 @@ async function fetchInstagramAPI(endpoint, cookiesHeader) {
 
 async function scrapeInstagramEphemeral() {
   try {
-    // always login and use the cookies immediately (no file I/O)
     const cookiesHeader = await loginAndGetCookiesHeader();
 
     console.log(`📊 Fetching profile for ${config.targetUser}...`);
@@ -264,13 +264,10 @@ async function scrapeInstagramEphemeral() {
 
     const result = { profile: user, posts };
     console.log("✅ Result:", JSON.stringify(result, null, 2));
-
-    // إذا حبيت ترجع النتيجة من الدالة بدل console.log:
     return result;
   } catch (err) {
     console.error("❌ Error:", err.message);
   }
 }
 
-// شغّل
 scrapeInstagramEphemeral();
