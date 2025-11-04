@@ -95,15 +95,13 @@ function saveCookies(cookies) {
 async function loginAndGetCookies() {
   console.log("\n🔐 Starting login process...");
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled",
-      "--disable-dev-shm-usage",
-    ],
-  });
+ const browser = await chromium.launch({
+  headless: false, // ⬅️ غيرها لـ false
+  args: [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+  ],
+});
 
   const context = await browser.newContext({
     userAgent: USER_AGENT,
