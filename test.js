@@ -2,9 +2,7 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import fetch from "node-fetch";
 import { execSync } from "child_process";
-import { resolve } from "path";
 
-// ⚙️ الإعدادات
 const config = {
   username: "nannis_cakes",
   loginUsername: "abdallarroom13",
@@ -12,70 +10,57 @@ const config = {
   postsLimit: 12,
 };
 
-// 🔍 البحث عن مسار Chrome
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 function findChrome() {
   const paths = [
     "/usr/bin/google-chrome",
     "/usr/bin/google-chrome-stable",
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
-    "/snap/bin/chromium",
   ];
 
   for (const path of paths) {
     if (fs.existsSync(path)) {
-      console.log(`✅ تم العثور على Chrome: ${path}`);
+      console.log(`✅ Chrome: ${path}`);
       return path;
     }
   }
 
-  // محاولة البحث باستخدام which
   try {
-    const result = execSync("which google-chrome-stable || which google-chrome || which chromium", {
+    const result = execSync("which google-chrome-stable || which google-chrome", {
       encoding: "utf-8",
     }).trim();
-    if (result) {
-      console.log(`✅ تم العثور على Chrome: ${result}`);
-      return result;
-    }
+    if (result) return result;
   } catch (e) {}
 
-  console.log("❌ لم يتم العثور على Chrome - سيتم استخدام الإعدادات الافتراضية");
   return null;
 }
 
-// 🔐 تسجيل الدخول والحصول على Cookies
 async function loginAndGetCookies() {
-  console.log("🔐 جاري تسجيل الدخول...");
+  console.log("🔐 تسجيل الدخول...");
 
   const chromePath = findChrome();
-  const launchOptions = {
+  const browser = await puppeteer.launch({
     headless: "new",
+    executablePath: chromePath,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-blink-features=AutomationControlled",
       "--disable-dev-shm-usage",
-      "--disable-web-security",
-      "--disable-features=IsolateOrigins,site-per-process",
       "--disable-gpu",
+      "--single-process",
+      "--no-zygote",
       "--window-size=1920,1080",
-      "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     ],
-  };
+  });
 
-  if (chromePath) {
-    launchOptions.executablePath = chromePath;
-  }
-
-  const browser = await puppeteer.launch(launchOptions);
   const page = await browser.newPage();
 
-  // 🎭 إخفاء علامات Bot
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, "webdriver", { get: () => false });
-    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3, 4, 5] });
-    Object.defineProperty(navigator, "languages", { get: () => ["en-US", "en"] });
+    Object.defineProperty(navigator, "plugins", { get: () => [1, 2, 3] });
     window.chrome = { runtime: {} };
   });
 
@@ -83,110 +68,102 @@ async function loginAndGetCookies() {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   );
 
-  await page.setViewport({ width: 1920, height: 1080 });
-
   try {
-    console.log("📱 فتح صفحة تسجيل الدخول...");
-    await page.goto("https://www.instagram.com/accounts/login/", {
-      waitUntil: "domcontentloaded",
+    console.log("📱 فتح Instagram...");
+    
+    await page.goto("https://www.instagram.com/", {
+      waitUntil: "networkidle0",
       timeout: 60000,
     });
 
-    // انتظار التحميل
-    await new Promise(resolve=>setTimeout(resolve,5000))
-  await new Promise(resolve=>setTimeout(resolve,5000))
+    console.log("⏳ انتظار التحميل الكامل...");
+    await sleep(8000);
 
-    console.log("⌨️ البحث عن حقل اسم المستخدم...");
-
-    // محاولة عدة طرق للعثور على الحقل
-    let usernameInput;
+    // البحث عن زر تسجيل الدخول
     try {
-      // الطريقة 1: بالاسم
-      usernameInput = await page.waitForSelector('input[name="username"]', {
-        visible: true,
-        timeout: 10000,
+      console.log("🔍 البحث عن زر تسجيل الدخول...");
+      await page.waitForSelector('a[href="/accounts/login/"]', { timeout: 5000 });
+      await page.click('a[href="/accounts/login/"]');
+      await sleep(5000);
+    } catch (e) {
+      console.log("⚠️ الانتقال مباشرة لصفحة تسجيل الدخول...");
+      await page.goto("https://www.instagram.com/accounts/login/", {
+        waitUntil: "networkidle0",
+        timeout: 60000,
       });
-    } catch (e1) {
-      console.log("⚠️ محاولة selector بديل...");
-      try {
-        // الطريقة 2: بالـ aria-label
-        usernameInput = await page.waitForSelector(
-          'input[aria-label*="username"], input[aria-label*="Phone"]',
-          { visible: true, timeout: 10000 }
-        );
-      } catch (e2) {
-        // الطريقة 3: أي input type=text
-        console.log("⚠️ محاولة selector عام...");
-        await new Promise(resolve=>setTimeout(resolve,3000))
-        usernameInput = await page.$('input[type="text"]');
-      }
+      await sleep(8000);
     }
 
-    if (!usernameInput) {
-      throw new Error("❌ لم يتم العثور على حقل اسم المستخدم");
+    console.log("⌨️ البحث عن الحقول...");
+
+    // انتظر حتى يظهر أي input
+    await page.waitForSelector("input", { timeout: 15000 });
+    await sleep(3000);
+
+    // احصل على جميع الـ inputs
+    const inputs = await page.$$("input");
+    console.log(`📊 عدد الحقول: ${inputs.length}`);
+
+    if (inputs.length < 2) {
+      throw new Error("❌ لم يتم العثور على حقول كافية");
     }
 
-    console.log("✅ تم العثور على الحقول");
+    console.log("✍️ إدخال البيانات...");
 
-    // مسح أي قيم موجودة
-    await page.evaluate(() => {
-      const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
-      inputs.forEach((input) => (input.value = ""));
-    });
+    // الحقل الأول = username
+    await inputs[0].click({ clickCount: 3 });
+    await sleep(500);
+    await inputs[0].type(config.loginUsername, { delay: 150 });
+    await sleep(1500);
 
- await new Promise(resolve=>setTimeout(resolve,1000))
-
-    // إدخال البيانات ببطء
-    console.log("✍️ إدخال اسم المستخدم...");
-    await page.focus('input[name="username"]');
-    await page.keyboard.type(config.loginUsername, { delay: 120 });
- await new Promise(resolve=>setTimeout(resolve,1500))
-
-    console.log("✍️ إدخال كلمة المرور...");
-    await page.focus('input[name="password"]');
-    await page.keyboard.type(config.loginPassword, { delay: 120 });
- await new Promise(resolve=>setTimeout(resolve,2000))
+    // الحقل الثاني = password
+    await inputs[1].click({ clickCount: 3 });
+    await sleep(500);
+    await inputs[1].type(config.loginPassword, { delay: 150 });
+    await sleep(2000);
 
     console.log("🚀 الضغط على تسجيل الدخول...");
-    
-    // محاولة الضغط على الزر بطرق مختلفة
+
+    // البحث عن زر Submit
     try {
-      await page.click('button[type="submit"]');
+      const submitBtn = await page.$('button[type="submit"]');
+      if (submitBtn) {
+        await submitBtn.click();
+      } else {
+        await page.keyboard.press("Enter");
+      }
     } catch (e) {
       await page.keyboard.press("Enter");
     }
 
-    // انتظار التوجيه
     console.log("⏳ انتظار اكتمال تسجيل الدخول...");
- await new Promise(resolve=>setTimeout(resolve,8000))
+    await sleep(10000);
 
     // التحقق من نجاح تسجيل الدخول
     const currentUrl = page.url();
     console.log(`📍 الصفحة الحالية: ${currentUrl}`);
 
     if (currentUrl.includes("/accounts/login/")) {
-      // قد يكون هناك خطأ في البيانات
-      const errorMsg = await page
-        .$eval("#slfErrorAlert", (el) => el.textContent)
-        .catch(() => "");
+      // البحث عن رسالة خطأ
+      const errorMsg = await page.$eval("#slfErrorAlert", (el) => el.textContent).catch(() => "");
       if (errorMsg) {
         throw new Error(`❌ خطأ في تسجيل الدخول: ${errorMsg}`);
       }
       console.log("⚠️ لا يزال في صفحة تسجيل الدخول - الانتظار أكثر...");
-  await new Promise(resolve=>setTimeout(resolve,5000))
+      await sleep(5000);
     }
 
     // التعامل مع "Save Login Info"
     try {
       console.log("🔍 البحث عن نافذة حفظ البيانات...");
       const notNowBtn = await page.waitForSelector(
-        'button:has-text("Not Now"), button:has-text("not now"), div[role="button"]:has-text("Not Now")',
+        'button:has-text("Not Now"), button:has-text("not now"), div[role="button"]',
         { timeout: 5000 }
       );
       if (notNowBtn) {
         console.log("✋ رفض حفظ البيانات");
         await notNowBtn.click();
-      await new Promise(resolve=>setTimeout(resolve,2000))
+        await sleep(2000);
       }
     } catch (e) {
       console.log("ℹ️ لا توجد نافذة حفظ البيانات");
@@ -196,13 +173,13 @@ async function loginAndGetCookies() {
     try {
       console.log("🔍 البحث عن نافذة الإشعارات...");
       const notNowBtn2 = await page.waitForSelector(
-        'button:has-text("Not Now"), div[role="button"]:has-text("Not Now")',
+        'button:has-text("Not Now"), div[role="button"]',
         { timeout: 5000 }
       );
       if (notNowBtn2) {
         console.log("✋ رفض الإشعارات");
         await notNowBtn2.click();
-      await new Promise(resolve=>setTimeout(resolve,2000))
+        await sleep(2000);
       }
     } catch (e) {
       console.log("ℹ️ لا توجد نافذة إشعارات");
@@ -212,7 +189,7 @@ async function loginAndGetCookies() {
     console.log("🍪 جلب Cookies...");
     const cookies = await page.cookies();
 
-    // حفظ screenshot للتأكيد
+    // حفظ screenshot
     await page.screenshot({ path: "success-login.png" });
     console.log("📸 تم حفظ screenshot: success-login.png");
 
@@ -222,14 +199,14 @@ async function loginAndGetCookies() {
       throw new Error("❌ فشل الحصول على Cookies");
     }
 
-    // التحقق من وجود sessionid
+    // التحقق من sessionid
     const sessionId = cookies.find((c) => c.name === "sessionid");
     if (!sessionId) {
-      throw new Error("❌ لم يتم تسجيل الدخول بنجاح - لا يوجد sessionid");
+      throw new Error("❌ لم يتم تسجيل الدخول - لا يوجد sessionid");
     }
 
     fs.writeFileSync("cookies.json", JSON.stringify(cookies, null, 2));
-    console.log("✅ تم حفظ Cookies بنجاح!");
+    console.log("✅ تم حفظ Cookies!");
     console.log(`   📊 عدد Cookies: ${cookies.length}`);
     return cookies;
   } catch (error) {
@@ -239,7 +216,6 @@ async function loginAndGetCookies() {
       await page.screenshot({ path: "error-login.png", fullPage: true });
       console.log("📸 تم حفظ screenshot: error-login.png");
 
-      // حفظ HTML للتشخيص
       const html = await page.content();
       fs.writeFileSync("error-page.html", html);
       console.log("📄 تم حفظ HTML: error-page.html");
@@ -250,10 +226,8 @@ async function loginAndGetCookies() {
   }
 }
 
-// 📡 جلب البيانات من Instagram API
 async function fetchInstagramAPI(endpoint, cookies) {
   const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-
   const csrfToken = cookies.find((c) => c.name === "csrftoken")?.value || "";
 
   if (!csrfToken) {
@@ -287,11 +261,9 @@ async function fetchInstagramAPI(endpoint, cookies) {
   return await res.json();
 }
 
-// 🕷️ استخراج البيانات
 async function scrapeInstagram() {
   let cookies;
 
-  // تحميل أو إنشاء cookies
   if (fs.existsSync("cookies.json")) {
     console.log("📂 تحميل Cookies المحفوظة...");
     try {
@@ -378,7 +350,6 @@ async function scrapeInstagram() {
   }
 }
 
-// 🚀 تشغيل
 console.log("🚀 Instagram Scraper\n");
 scrapeInstagram()
   .then(() => {
