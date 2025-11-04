@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import fs from "fs";
 import fetch from "node-fetch";
 import { execSync } from "child_process";
+import { resolve } from "path";
 
 // ⚙️ الإعدادات
 const config = {
@@ -92,7 +93,8 @@ async function loginAndGetCookies() {
     });
 
     // انتظار التحميل
-    await page.waitForTimeout(5000);
+    await new Promise(resolve=>setTimeout(resolve,5000))
+  await new Promise(resolve=>setTimeout(resolve,5000))
 
     console.log("⌨️ البحث عن حقل اسم المستخدم...");
 
@@ -115,7 +117,7 @@ async function loginAndGetCookies() {
       } catch (e2) {
         // الطريقة 3: أي input type=text
         console.log("⚠️ محاولة selector عام...");
-        await page.waitForTimeout(3000);
+        await new Promise(resolve=>setTimeout(resolve,3000))
         usernameInput = await page.$('input[type="text"]');
       }
     }
@@ -132,18 +134,18 @@ async function loginAndGetCookies() {
       inputs.forEach((input) => (input.value = ""));
     });
 
-    await page.waitForTimeout(1000);
+ await new Promise(resolve=>setTimeout(resolve,1000))
 
     // إدخال البيانات ببطء
     console.log("✍️ إدخال اسم المستخدم...");
     await page.focus('input[name="username"]');
     await page.keyboard.type(config.loginUsername, { delay: 120 });
-    await page.waitForTimeout(1500);
+ await new Promise(resolve=>setTimeout(resolve,1500))
 
     console.log("✍️ إدخال كلمة المرور...");
     await page.focus('input[name="password"]');
     await page.keyboard.type(config.loginPassword, { delay: 120 });
-    await page.waitForTimeout(2000);
+ await new Promise(resolve=>setTimeout(resolve,2000))
 
     console.log("🚀 الضغط على تسجيل الدخول...");
     
@@ -156,7 +158,7 @@ async function loginAndGetCookies() {
 
     // انتظار التوجيه
     console.log("⏳ انتظار اكتمال تسجيل الدخول...");
-    await page.waitForTimeout(8000);
+ await new Promise(resolve=>setTimeout(resolve,8000))
 
     // التحقق من نجاح تسجيل الدخول
     const currentUrl = page.url();
@@ -171,7 +173,7 @@ async function loginAndGetCookies() {
         throw new Error(`❌ خطأ في تسجيل الدخول: ${errorMsg}`);
       }
       console.log("⚠️ لا يزال في صفحة تسجيل الدخول - الانتظار أكثر...");
-      await page.waitForTimeout(5000);
+  await new Promise(resolve=>setTimeout(resolve,5000))
     }
 
     // التعامل مع "Save Login Info"
@@ -184,7 +186,7 @@ async function loginAndGetCookies() {
       if (notNowBtn) {
         console.log("✋ رفض حفظ البيانات");
         await notNowBtn.click();
-        await page.waitForTimeout(2000);
+      await new Promise(resolve=>setTimeout(resolve,2000))
       }
     } catch (e) {
       console.log("ℹ️ لا توجد نافذة حفظ البيانات");
@@ -200,7 +202,7 @@ async function loginAndGetCookies() {
       if (notNowBtn2) {
         console.log("✋ رفض الإشعارات");
         await notNowBtn2.click();
-        await page.waitForTimeout(2000);
+      await new Promise(resolve=>setTimeout(resolve,2000))
       }
     } catch (e) {
       console.log("ℹ️ لا توجد نافذة إشعارات");
